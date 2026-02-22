@@ -31,6 +31,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.ArrayList;
 import java.util.function.Consumer;
 
 /**
@@ -38,12 +39,16 @@ import java.util.function.Consumer;
  */
 public class ModrinthUpdateChecker {
 
-    private static final String API_URL = "https://api.modrinth.com/v2/project/{id}/version";
+    private static final String API_URL = "https://api.modrinth.com/v2/project/{id}/version?{param}";
 
     private final String projectId;
     private final String loader;
     @Nullable
     private final String minecraftVersion;
+
+    private boolean acceptRelease = true;
+    private boolean acceptBeta = true;
+    private boolean acceptAlpha = true;
 
     /**
      * Create a new update checker for the given project.
@@ -80,7 +85,7 @@ public class ModrinthUpdateChecker {
         try {
             HttpClient client = HttpClient.newHttpClient();
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(API_URL.replace("{id}", projectId)))
+                    .uri(URI.create(PrepareURL()))
                     .GET()
                     .build();
 
@@ -104,26 +109,11 @@ public class ModrinthUpdateChecker {
      */
     @Nullable
     protected String getLatestVersion(JsonArray versions) {
-        return versions.asList().stream()
+        return versions.asList().stream().findFirst()
                 .map(JsonElement::getAsJsonObject)
-                .filter(this::isVersionCompatible)
                 .map(version -> version.get("version_number").getAsString())
                 .map(ModrinthUpdateChecker::getRawVersion)
-                .max(String::compareTo)
                 .orElse(null);
-    }
-
-    /**
-     * Check if the version is compatible for the given loader and minecraft version.
-     *
-     * @param version the version
-     * @return true if the version is valid
-     */
-    protected boolean isVersionCompatible(JsonObject version) {
-        JsonArray versions = version.get("game_versions").getAsJsonArray();
-        JsonArray loaders = version.get("loaders").getAsJsonArray();
-        return (minecraftVersion == null || versions.contains(new JsonPrimitive(minecraftVersion)))
-               && loaders.contains(new JsonPrimitive(loader));
     }
 
     /**
@@ -139,4 +129,62 @@ public class ModrinthUpdateChecker {
         String[] split = version.split("\\+");
         return split[0];
     }
+
+    /**
+     * Get the modrinth url correct for requested parameters.
+     *
+     * @return the url to request to. null if request cannot be satisfied
+     */
+    @Nullable
+    private String PrepareURL(){
+        if(!acceptAlpha && !acceptBeta && !acceptRelease) return null;
+
+        // Prepare project url
+        var projectURL = API_URL.replace("{id}", projectId);
+
+        // Prepare arguments
+        var parameterList = new ArrayList<String>();
+
+        if(acceptRelease) parameterList.add("c=release");
+        if(acceptBeta) parameterList.add("c=beta");
+        if(acceptAlpha) parameterList.add("c=alpha");
+
+        if(minecraftVersion != null) parameterList.add("g=" + minecraftVersion);
+
+        parameterList.add("l=" + loader.toLowerCase());
+
+        var parameters = String.join("&", parameterList);
+        return projectURL.replace("{params}", parameters);
+    }
+
+    /**
+     * Set if we should accept release versions.
+     * Default is true.
+     *
+     * @param acceptRelease if we should accept release versions
+     */
+    public void setAcceptRelease(boolean acceptRelease) {
+        this.acceptRelease = acceptRelease;
+    }
+
+    /**
+     * Set if we should accept beta versions.
+     * Default is true.
+     *
+     * @param acceptBeta if we should accept beta versions
+     */
+    public void setAcceptBeta(boolean acceptBeta) {
+        this.acceptBeta = acceptBeta;
+    }
+
+    /**
+     * Set if we should accept alpha versions.
+     * Default is true.
+     *
+     * @param acceptAlpha if we should accept alpha versions
+     */
+    public void setAcceptAlpha(boolean acceptAlpha) {
+        this.acceptAlpha = acceptAlpha;
+    }
+
 }
