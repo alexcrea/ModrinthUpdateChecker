@@ -41,7 +41,7 @@ import java.util.function.Function;
  */
 public class ModrinthUpdateChecker {
 
-    private static final String API_URL = "https://api.modrinth.com/v2/project/{id}/version?{param}";
+    private static final String API_URL = "https://api.modrinth.com/v2/project/{id}/version?{params}";
 
     private final String projectId;
     private final String loader;
