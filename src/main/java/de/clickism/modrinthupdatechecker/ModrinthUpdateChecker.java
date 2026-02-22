@@ -163,8 +163,9 @@ public class ModrinthUpdateChecker {
      *
      * @param acceptRelease if we should accept release versions
      */
-    public void setAcceptRelease(boolean acceptRelease) {
+    public ModrinthUpdateChecker setAcceptRelease(boolean acceptRelease) {
         this.acceptRelease = acceptRelease;
+        return this;
     }
 
     /**
@@ -173,8 +174,9 @@ public class ModrinthUpdateChecker {
      *
      * @param acceptBeta if we should accept beta versions
      */
-    public void setAcceptBeta(boolean acceptBeta) {
+    public ModrinthUpdateChecker setAcceptBeta(boolean acceptBeta) {
         this.acceptBeta = acceptBeta;
+        return this;
     }
 
     /**
@@ -183,8 +185,9 @@ public class ModrinthUpdateChecker {
      *
      * @param acceptAlpha if we should accept alpha versions
      */
-    public void setAcceptAlpha(boolean acceptAlpha) {
+    public ModrinthUpdateChecker setAcceptAlpha(boolean acceptAlpha) {
         this.acceptAlpha = acceptAlpha;
+        return this;
     }
 
 }
