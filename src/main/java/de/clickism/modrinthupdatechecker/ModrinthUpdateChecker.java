@@ -25,6 +25,7 @@
 package de.clickism.modrinthupdatechecker;
 
 import com.google.gson.*;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.net.URI;
@@ -33,6 +34,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.ArrayList;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * Utility class to check for newer versions of a project hosted on Modrinth.
@@ -49,6 +51,11 @@ public class ModrinthUpdateChecker {
     private boolean acceptRelease = true;
     private boolean acceptBeta = true;
     private boolean acceptAlpha = true;
+
+    @Nullable
+    public Consumer<Exception> onError = null;
+    @NotNull
+    public Function<String, String> getRawVersion = ModrinthUpdateChecker::getRawVersion;
 
     /**
      * Create a new update checker for the given project.
@@ -97,7 +104,8 @@ public class ModrinthUpdateChecker {
                         if (latestVersion == null) return;
                         consumer.accept(latestVersion);
                     });
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            if(onError != null) onError.accept(e);
         }
     }
 
@@ -112,7 +120,7 @@ public class ModrinthUpdateChecker {
         return versions.asList().stream().findFirst()
                 .map(JsonElement::getAsJsonObject)
                 .map(version -> version.get("version_number").getAsString())
-                .map(ModrinthUpdateChecker::getRawVersion)
+                .map(getRawVersion)
                 .orElse(null);
     }
 
