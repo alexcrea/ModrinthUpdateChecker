@@ -49,7 +49,8 @@ public class ModrinthUpdateChecker {
     @Nullable
     private final String minecraftVersion;
 
-    private boolean featured = false;
+    @Nullable
+    private Boolean featured = null;
 
     @Nullable
     public Consumer<Exception> onError = null;
@@ -145,6 +146,10 @@ public class ModrinthUpdateChecker {
         return split[0];
     }
 
+    /**
+     * Prepare this request uri based on current parameters.
+     * @return the request uri
+     */
     private URI prepareURI() {
         var url = new StringBuilder(API_URL.replace("{id}", projectId));
 
@@ -160,7 +165,7 @@ public class ModrinthUpdateChecker {
     }
 
     /**
-     * Get the parameters for the version request
+     * Get the parameters for the version request.
      *
      * @return a map of key-value map of the request parameters
      */
@@ -169,24 +174,25 @@ public class ModrinthUpdateChecker {
 
         parameters.put("loaders", List.of(loader).toString());
         if(minecraftVersion != null) parameters.put("game_versions", List.of(minecraftVersion).toString());
-        parameters.put("featured", String.valueOf(featured));
+        if(featured != null) parameters.put("featured", featured.toString());
 
         parameters.put("include_changelog", "false");
         return parameters;
     }
 
     /**
-     * Only get featured versions
-     * @param featured should be restricted to featured version ? default false if not called
+     * Only get featured or non-featured versions.
+     * Null represent no filter.
+     * @param featured should be restricted to featured version ? default null if not called
      * @return this
      */
-    public ModrinthUpdateChecker setFeatured(boolean featured) {
+    public ModrinthUpdateChecker setFeatured(@Nullable Boolean featured) {
         this.featured = featured;
         return this;
     }
 
     /**
-     * Function called on error calling the api
+     * Function called on error calling the api.
      * @param onError What should happen on error
      * @return this
      */
@@ -196,8 +202,8 @@ public class ModrinthUpdateChecker {
     }
 
     /**
-     * Set the function to get raw version from the modrinth version
-     * If null provided raw version will act as in the identity function
+     * Set the function to get raw version from the modrinth version.
+     * If null provided raw version will act as in the identity function.
      * @param getRawVersion The function transforming modrinth version to raw version
      * @return this
      */
