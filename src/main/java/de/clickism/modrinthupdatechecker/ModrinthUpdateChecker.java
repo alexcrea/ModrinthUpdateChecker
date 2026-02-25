@@ -25,14 +25,15 @@
 package de.clickism.modrinthupdatechecker;
 
 import com.google.gson.*;
-import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -41,20 +42,18 @@ import java.util.function.Function;
  */
 public class ModrinthUpdateChecker {
 
-    private static final String API_URL = "https://api.modrinth.com/v2/project/{id}/version?{params}";
+    private static final String API_URL = "https://api.modrinth.com/v2/project/{id}/version";
 
     private final String projectId;
     private final String loader;
     @Nullable
     private final String minecraftVersion;
 
-    private boolean acceptRelease = true;
-    private boolean acceptBeta = true;
-    private boolean acceptAlpha = true;
+    private boolean featured = false;
 
     @Nullable
     public Consumer<Exception> onError = null;
-    @NotNull
+    @Nullable
     public Function<String, String> getRawVersion = ModrinthUpdateChecker::getRawVersion;
 
     /**
@@ -92,16 +91,24 @@ public class ModrinthUpdateChecker {
         try {
             HttpClient client = HttpClient.newHttpClient();
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(PrepareURL()))
+                    .uri(prepareURI())
                     .GET()
                     .build();
 
             client.sendAsync(request, HttpResponse.BodyHandlers.ofString())
                     .thenAcceptAsync(response -> {
-                        if (response.statusCode() != 200) return;
+                        if (response.statusCode() != 200) {
+                            if(onError != null)
+                                onError.accept(new RuntimeException("wrong response status code: " + response.statusCode()));
+                            return;
+                        }
                         JsonArray versionsArray = JsonParser.parseString(response.body()).getAsJsonArray();
                         String latestVersion = getLatestVersion(versionsArray);
-                        if (latestVersion == null) return;
+                        if (latestVersion == null) {
+                            if(onError != null)
+                                onError.accept(new RuntimeException("latest version is null"));
+                            return;
+                        }
                         consumer.accept(latestVersion);
                     });
         } catch (Exception e) {
@@ -120,7 +127,7 @@ public class ModrinthUpdateChecker {
         return versions.asList().stream().findFirst()
                 .map(JsonElement::getAsJsonObject)
                 .map(version -> version.get("version_number").getAsString())
-                .map(getRawVersion)
+                .map(getRawVersion != null ? getRawVersion : (v -> v))
                 .orElse(null);
     }
 
@@ -138,64 +145,64 @@ public class ModrinthUpdateChecker {
         return split[0];
     }
 
-    /**
-     * Get the modrinth url correct for requested parameters.
-     *
-     * @return the url to request to. null if request cannot be satisfied
-     */
-    @Nullable
-    private String PrepareURL(){
-        if(!acceptAlpha && !acceptBeta && !acceptRelease) return null;
+    private URI prepareURI() {
+        var url = new StringBuilder(API_URL.replace("{id}", projectId));
 
-        // Prepare project url
-        var projectURL = API_URL.replace("{id}", projectId);
+        var parameters = prepareParameters();
+        String[] paramArray = new String[parameters.size()];
+        int i = 0;
+        for (Map.Entry<String, String> entry : parameters.entrySet()) {
+            paramArray[i++] = entry.getKey() + '=' + entry.getValue();
+        }
+        url.append('?').append(String.join("&", paramArray));
 
-        // Prepare arguments
-        var parameterList = new ArrayList<String>();
-
-        if(acceptRelease) parameterList.add("c=release");
-        if(acceptBeta) parameterList.add("c=beta");
-        if(acceptAlpha) parameterList.add("c=alpha");
-
-        if(minecraftVersion != null) parameterList.add("g=" + minecraftVersion);
-
-        parameterList.add("l=" + loader.toLowerCase());
-
-        var parameters = String.join("&", parameterList);
-        return projectURL.replace("{params}", parameters);
+        return URI.create(url.toString());
     }
 
     /**
-     * Set if we should accept release versions.
-     * Default is true.
+     * Get the parameters for the version request
      *
-     * @param acceptRelease if we should accept release versions
+     * @return a map of key-value map of the request parameters
      */
-    public ModrinthUpdateChecker setAcceptRelease(boolean acceptRelease) {
-        this.acceptRelease = acceptRelease;
+    private Map<String, String> prepareParameters(){
+        var parameters = new HashMap<String, String>();
+
+        parameters.put("loaders", List.of(loader).toString());
+        if(minecraftVersion != null) parameters.put("game_versions", List.of(minecraftVersion).toString());
+        parameters.put("featured", String.valueOf(featured));
+
+        parameters.put("include_changelog", "false");
+        return parameters;
+    }
+
+    /**
+     * Only get featured versions
+     * @param featured should be restricted to featured version ? default false if not called
+     * @return this
+     */
+    public ModrinthUpdateChecker setFeatured(boolean featured) {
+        this.featured = featured;
         return this;
     }
 
     /**
-     * Set if we should accept beta versions.
-     * Default is true.
-     *
-     * @param acceptBeta if we should accept beta versions
+     * Function called on error calling the api
+     * @param onError What should happen on error
+     * @return this
      */
-    public ModrinthUpdateChecker setAcceptBeta(boolean acceptBeta) {
-        this.acceptBeta = acceptBeta;
+    public ModrinthUpdateChecker setOnError(@Nullable Consumer<Exception> onError) {
+        this.onError = onError;
         return this;
     }
 
     /**
-     * Set if we should accept alpha versions.
-     * Default is true.
-     *
-     * @param acceptAlpha if we should accept alpha versions
+     * Set the function to get raw version from the modrinth version
+     * If null provided raw version will act as in the identity function
+     * @param getRawVersion The function transforming modrinth version to raw version
+     * @return this
      */
-    public ModrinthUpdateChecker setAcceptAlpha(boolean acceptAlpha) {
-        this.acceptAlpha = acceptAlpha;
+    public ModrinthUpdateChecker setGetRawVersion(@Nullable Function<String, String> getRawVersion) {
+        this.getRawVersion = getRawVersion;
         return this;
     }
-
 }
